@@ -20,7 +20,9 @@ import {
   Pause,
   Trash2,
   Youtube,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Sparkles,
+  LayoutList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -32,7 +34,10 @@ export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [transcription, setTranscription] = useState<string>('');
+  const [summary, setSummary] = useState<string>('');
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [viewMode, setViewMode] = useState<'transcription' | 'summary'>('transcription');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -149,6 +154,8 @@ export default function App() {
     if (!file) return;
     setIsTranscribing(true);
     setError(null);
+    setSummary('');
+    setViewMode('transcription');
     try {
       const base64Data = await fileToBase64(file);
       const response = await ai.models.generateContent({
@@ -197,6 +204,8 @@ export default function App() {
     }
     setIsTranscribing(true);
     setError(null);
+    setSummary('');
+    setViewMode('transcription');
     try {
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -219,8 +228,33 @@ export default function App() {
     }
   };
 
+  const summarizeTranscription = async () => {
+    if (!transcription) return;
+    setIsSummarizing(true);
+    setError(null);
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Harap buat rangkuman singkat dan padat dari transkripsi berikut dalam bahasa Indonesia. Gunakan poin-poin jika perlu. Transkripsi: ${transcription}`,
+      });
+      const text = response.text;
+      if (text) {
+        setSummary(text);
+        setViewMode('summary');
+      } else {
+        throw new Error('Gagal membuat rangkuman.');
+      }
+    } catch (err: any) {
+      console.error('Summarization error:', err);
+      setError(err.message || 'Gagal membuat rangkuman. Silakan coba lagi.');
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(transcription);
+    const textToCopy = viewMode === 'transcription' ? transcription : summary;
+    navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -229,6 +263,8 @@ export default function App() {
     setFile(null);
     setYoutubeUrl('');
     setTranscription('');
+    setSummary('');
+    setViewMode('transcription');
     setError(null);
     setAudioUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -494,27 +530,70 @@ export default function App() {
                   className="bg-white rounded-3xl shadow-sm border border-stone-200 flex flex-col h-full min-h-[500px]"
                 >
                   <div className="p-6 border-bottom border-stone-100 flex items-center justify-between">
-                    <h2 className="font-medium text-stone-800">Hasil Transkripsi</h2>
-                    <button
-                      onClick={copyToClipboard}
-                      className="flex items-center gap-2 px-4 py-2 bg-stone-50 hover:bg-stone-100 rounded-xl text-sm font-medium transition-colors text-stone-600"
-                    >
-                      {copied ? (
-                        <>
-                          <Check size={16} className="text-emerald-600" />
-                          Tersalin
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={16} />
-                          Salin Teks
-                        </>
+                    <div className="flex items-center gap-4">
+                      <h2 className="font-medium text-stone-800">
+                        {viewMode === 'transcription' ? 'Hasil Transkripsi' : 'Rangkuman AI'}
+                      </h2>
+                      {summary && (
+                        <div className="flex bg-stone-100 p-1 rounded-lg">
+                          <button
+                            onClick={() => setViewMode('transcription')}
+                            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${viewMode === 'transcription' ? 'bg-white text-emerald-600 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+                          >
+                            <LayoutList size={14} className="inline mr-1" />
+                            Transkripsi
+                          </button>
+                          <button
+                            onClick={() => setViewMode('summary')}
+                            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${viewMode === 'summary' ? 'bg-white text-emerald-600 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+                          >
+                            <Sparkles size={14} className="inline mr-1" />
+                            Rangkuman
+                          </button>
+                        </div>
                       )}
-                    </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!summary && (
+                        <button
+                          onClick={summarizeTranscription}
+                          disabled={isSummarizing}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 disabled:bg-stone-50 disabled:text-stone-400 rounded-xl text-sm font-medium transition-colors text-emerald-600"
+                        >
+                          {isSummarizing ? (
+                            <>
+                              <Loader2 size={16} className="animate-spin" />
+                              Merangkum...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles size={16} />
+                              Buat Rangkuman
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <button
+                        onClick={copyToClipboard}
+                        className="flex items-center gap-2 px-4 py-2 bg-stone-50 hover:bg-stone-100 rounded-xl text-sm font-medium transition-colors text-stone-600"
+                      >
+                        {copied ? (
+                          <>
+                            <Check size={16} className="text-emerald-600" />
+                            Tersalin
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={16} />
+                            Salin {viewMode === 'transcription' ? 'Teks' : 'Rangkuman'}
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                   <div className="p-8 flex-1 overflow-y-auto prose prose-stone max-w-none">
                     <p className="text-stone-700 leading-relaxed whitespace-pre-wrap">
-                      {transcription}
+                      {viewMode === 'transcription' ? transcription : summary}
                     </p>
                   </div>
                 </motion.div>

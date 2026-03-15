@@ -1,0 +1,5 @@
+{
+  "name": "AI Transkripsi Audio & Video",
+  "description": "Unggah audio, rekam suara, atau tempel URL YouTube untuk mendapatkan transkripsi instan yang akurat.",
+  "requestFramePermissions": ["microphone"]
+}
